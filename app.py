@@ -27,7 +27,7 @@ def obter_jogos_cbf(rodada):
 
 # --- IA GEMINI ---
 def processar_foto(imagem, lista_jogos):
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-flash-latest')
     img = Image.open(imagem)
     prompt = f"Extraia placares para estes jogos: {lista_jogos}. Retorne APENAS um JSON: {{'Time A x Time B': '2x0'}}"
     response = model.generate_content([prompt, img])
