@@ -11,7 +11,7 @@ except:
     st.error("Configure a chave GEMINI_API_KEY nos Secrets do Streamlit!")
 
 def analisar_com_gemini(imagem, lista_jogos):
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-flash-latest')
     img = Image.open(imagem)
     
     prompt = f"""
