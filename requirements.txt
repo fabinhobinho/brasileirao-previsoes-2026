@@ -1,4 +1,7 @@
 streamlit
 google-generativeai
+supabase
 pandas
 pillow
+beautifulsoup4
+requests
