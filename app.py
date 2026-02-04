@@ -6,12 +6,14 @@ import json
 
 # --- CONFIGURAÇÃO IA ---
 try:
+    # Usando o modelo latest que funcionou para você
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-except:
-    st.error("Configure a chave GEMINI_API_KEY nos Secrets do Streamlit!")
+    MODELO_ESCOLHIDO = 'gemini-1.5-flash-latest'
+except Exception as e:
+    st.error(f"Erro na configuração da API Key: {e}")
 
 def analisar_com_gemini(imagem, lista_jogos):
-    model = genai.GenerativeModel('gemini-flash-latest')
+    model = genai.GenerativeModel(MODELO_ESCOLHIDO)
     img = Image.open(imagem)
     
     prompt = f"""
@@ -20,17 +22,17 @@ def analisar_com_gemini(imagem, lista_jogos):
     
     Sua tarefa: Extraia os placares da imagem e associe aos jogos da lista acima.
     Retorne APENAS um JSON no formato: {{"Nome do Jogo": "Placar"}}.
-    Exemplo: {{"Flamengo x Internacional": "2x0", "Santos x São Paulo": "1x2"}}
+    Exemplo: {{"Flamengo x Internacional": "3x0", "Santos x São Paulo": "3x1"}}
     Se não encontrar o placar de um jogo, não inclua no JSON. 
-    Retorne apenas o JSON puro, sem markdown.
+    ATENÇÃO: Retorne apenas o JSON puro, sem blocos de código markdown (```json ... ```).
     """
     
     response = model.generate_content([prompt, img])
-    txt = response.text.replace('```json', '').replace('```', '').strip()
+    # Limpeza extra para garantir que venha só o JSON
+    txt = response.text.strip().removeprefix("```json").removesuffix("```").strip()
     return json.loads(txt)
 
-# --- CALENDÁRIO REAL CBF 2026 ---
-# Dados baseados na tabela oficial da CBF para as primeiras rodadas
+# --- CALENDÁRIO REAL CBF 2026 (Primeiras Rodadas) ---
 calendario = {
     1: [
         "Atlético-MG x Palmeiras", "Internacional x Athletico-PR", "Coritiba x RB Bragantino",
@@ -58,19 +60,16 @@ calendario = {
 st.set_page_config(page_title="Palpites Brasileirão 2026", layout="centered", page_icon="⚽")
 st.title("🏆 Brasileirão 2026 - Maicon & Fabinho")
 
-# Barra lateral para trocar de usuário
 st.sidebar.header("Configuração")
 usuario = st.sidebar.radio("Quem está editando?", ["Maicon", "Fabinho"])
-rodada_atual = 2 # Conforme data de hoje 04/02/2026
+rodada_atual = 2 # Data de hoje 04/02/2026
 
-# Tabs
 tab_previsoes, tab_comparador = st.tabs(["📅 Palpites", "📊 Tabela Oficial"])
 
 with tab_previsoes:
     st.write(f"### 📍 Editando como: **{usuario}**")
     
     for rodada in range(1, 39):
-        # Exibe as rodadas passadas e as próximas 3 de forma clara
         is_relevant = (rodada <= rodada_atual + 3)
         label = f"Rodada {rodada}"
         if rodada == rodada_atual: label += " ⚽ (HOJE)"
@@ -79,22 +78,32 @@ with tab_previsoes:
             
             # --- SEÇÃO UPLOAD (TOPO) ---
             st.markdown("#### 📸 1. Upload da Foto")
-            foto = st.file_uploader(f"Subir print da Rodada {rodada}", type=['png', 'jpg', 'jpeg'], key=f"up_{rodada}")
+            foto = st.file_uploader(f"Subir print da Rodada {rodada}", type=['png', 'jpg', 'jpeg'], key=f"up_{rodada}", label_visibility="collapsed")
             
             if foto:
-                st.image(foto, caption="Foto para processamento", width=400)
-                if st.button(f"🤖 Extrair com Gemini (Rodada {rodada})", key=f"btn_ia_{rodada}"):
-                    with st.spinner("IA analisando a imagem..."):
+                # --- MUDANÇA AQUI: Layout em colunas para miniatura ---
+                col_btn, col_thumb = st.columns([4, 1]) # Coluna do botão maior, da imagem menor
+                
+                with col_thumb:
+                    # Exibe a imagem bem pequena (width=80 pixels)
+                    st.image(foto, width=80, use_container_width=False)
+
+                with col_btn:
+                    # O botão ocupa a largura da coluna dele
+                    processar = st.button(f"🤖 Extrair Placar com IA", key=f"btn_ia_{rodada}", use_container_width=True)
+
+                if processar:
+                    with st.spinner("Gemini lendo a imagem..."):
                         try:
                             jogos_lista = calendario.get(rodada, [])
                             resultados_ia = analisar_com_gemini(foto, jogos_lista)
-                            # Salva na memória do app
+                            # Salva na memória temporária
                             for jogo, placar in resultados_ia.items():
                                 st.session_state[f"val_{usuario}_{rodada}_{jogo}"] = placar
-                            st.success("Placares extraídos com sucesso! Confira abaixo.")
+                            st.toast("Placares extraídos! Verifique abaixo.", icon="✅")
                         except Exception as e:
-                            st.error(f"Erro ao ler imagem: {e}")
-
+                            st.error(f"Erro na leitura: {e}")
+            
             st.divider()
 
             # --- SEÇÃO RESULTADOS (ABAIXO) ---
@@ -103,15 +112,11 @@ with tab_previsoes:
             
             for jogo in jogos:
                 chave_input = f"val_{usuario}_{rodada}_{jogo}"
-                # Busca valor da IA ou mantém vazio para preenchimento manual
                 valor_atual = st.session_state.get(chave_input, "")
-                
                 st.text_input(f"➤ {jogo}", value=valor_atual, key=chave_input, placeholder="Ex: 2x0")
 
-            if st.button("💾 Salvar Rodada", key=f"save_{rodada}"):
-                st.balloons()
-                st.success(f"Palpites de {usuario} para a rodada {rodada} salvos com sucesso!")
+            # Botão de salvar (ainda sem banco de dados)
+            st.button("💾 Salvar Rodada (Temporário)", key=f"save_{rodada}", use_container_width=True)
 
 with tab_comparador:
     st.info("Aguardando script de atualização automática da CBF...")
-    st.write("Aqui ficará a tabela oficial do Brasileirão 2026.")
